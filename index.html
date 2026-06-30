@@ -8,15 +8,19 @@
 <style>
   :root{
     --bg:#f4f6f7; --card:#ffffff; --ink:#1f2a2e; --sub:#5b6b71;
-    --line:#dfe5e7; --accent:#0d7d80; --accent-d:#0a6164; --warn:#b25b00;
+    --line:#dfe5e7; --accent:#0d7d80; --accent-d:#0a6164; --warn:#b25b00; --soft:#f0f5f5;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
     line-height:1.6;padding:16px;}
-  .wrap{max-width:640px;margin:0 auto;}
+  .wrap{max-width:660px;margin:0 auto;}
   h1{font-size:18px;margin:4px 0 2px;}
-  .lead{color:var(--sub);font-size:13px;margin:0 0 16px;}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 14px;}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;}
+  .tab{flex:1;text-align:center;padding:9px 8px;border:1px solid var(--line);border-radius:9px;
+    background:#fff;color:var(--sub);font-size:14px;font-weight:600;cursor:pointer;}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
   label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px;}
   label:first-child{margin-top:0;}
@@ -24,13 +28,10 @@
     font-size:15px;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none;}
   select:focus,input:focus{outline:none;border-color:var(--accent);}
   .hint{font-size:12px;color:var(--sub);margin-top:3px;}
-  .row{display:flex;gap:10px;}
-  .row>div{flex:1;}
-  .out{margin-top:4px;}
-  .urlbox{background:#f0f5f5;border:1px solid var(--line);border-radius:8px;padding:12px;
+  .urlbox{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px;
     font-size:13px;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;color:#16383a;}
   .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
-  button{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
+  button.act{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
   .primary{background:var(--accent);color:#fff;}
   .primary:active{background:var(--accent-d);}
   .ghost{background:#eef2f2;color:var(--ink);}
@@ -40,56 +41,112 @@
     border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
   .note{font-size:12px;color:var(--sub);margin-top:10px;}
   .copied{font-size:12px;color:var(--accent);margin-left:8px;}
+  h2{font-size:14px;margin:2px 0 8px;}
+  .break{margin-top:18px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;}
+  th{background:var(--soft);font-weight:600;}
+  code{background:var(--soft);border-radius:4px;padding:1px 5px;font-size:12px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:4px 10px;font-size:13px;}
+  .kv .k{color:var(--sub);}
+  .kv .v{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;}
+  .kv .src{color:var(--sub);font-family:inherit;font-size:12px;}
+  ul.rules{margin:4px 0 0;padding-left:18px;font-size:13px;}
+  ul.rules li{margin-bottom:3px;}
+  .warnote{font-size:12px;color:var(--warn);margin-top:8px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>SDWS URL生成ツール <span class="tag">プロト</span></h1>
-  <p class="lead">拠点と流入元を選ぶだけでパラメータ付きの予約URLを発行します。予約ページのslugは拠点ごとに固定済みです。</p>
+  <p class="lead">拠点と流入元を選ぶだけでパラメータ付きの予約URLを発行します。予約slugは拠点ごとに固定済みです。</p>
 
-  <div class="card">
-    <label>拠点</label>
-    <select id="location"></select>
-
-    <label>予約タイプ</label>
-    <select id="booking"></select>
-    <div class="hint" id="bookingHint"></div>
-
-    <label>チャネル（流入元）</label>
-    <select id="channel"></select>
-    <div class="hint" id="channelHint"></div>
-
-    <label>年月</label>
-    <input id="ym" type="month">
-
-    <label>テンプレ名 / 補足（任意・utm_content）</label>
-    <input id="content" type="text" placeholder="例 location_report（空欄でOK）">
-    <div class="hint">必要なときだけ。普段は空欄で3本だけ付きます。</div>
+  <div class="tabs">
+    <div class="tab active" data-tab="gen">URL生成</div>
+    <div class="tab" data-tab="rule">ルール・辞書</div>
   </div>
 
-  <div class="card out">
-    <label>生成URL</label>
-    <div class="urlbox" id="url">—</div>
-    <div class="btns">
-      <button class="primary" id="copy">URLをコピー</button>
-      <button class="ghost" id="qrbtn">QRを表示</button>
-      <span class="copied" id="copied"></span>
+  <!-- ===== 生成タブ ===== -->
+  <div id="tab-gen">
+    <div class="card">
+      <label>拠点</label>
+      <select id="location"></select>
+
+      <label>予約タイプ</label>
+      <select id="booking"></select>
+      <div class="hint" id="bookingHint"></div>
+
+      <label>チャネル（流入元）</label>
+      <select id="channel"></select>
+      <div class="hint" id="channelHint"></div>
+
+      <label>年月</label>
+      <input id="ym" type="month">
+
+      <label>テンプレ名 / 補足（任意・utm_content）</label>
+      <input id="content" type="text" placeholder="例 location_report（空欄でOK）">
+      <div class="hint">必要なときだけ。普段は空欄で3本だけ付きます。</div>
     </div>
-    <div id="qr"></div>
-    <div class="note">utm_source / utm_medium / utm_campaign の3本を必須で付与。campaign は「年月_拠点」で自動生成します。</div>
+
+    <div class="card">
+      <label>生成URL</label>
+      <div class="urlbox" id="url">—</div>
+      <div class="btns">
+        <button class="act primary" id="copy">URLをコピー</button>
+        <button class="act ghost" id="qrbtn">QRを表示</button>
+        <span class="copied" id="copied"></span>
+      </div>
+      <div id="qr"></div>
+    </div>
+
+    <div class="card">
+      <h2>このURLの内訳</h2>
+      <div class="kv" id="breakdown"></div>
+    </div>
+  </div>
+
+  <!-- ===== ルール・辞書タブ ===== -->
+  <div id="tab-rule" style="display:none">
+    <div class="card">
+      <h2>パラメータの組み立てルール</h2>
+      <ul class="rules">
+        <li>必須は <code>utm_source</code> / <code>utm_medium</code> / <code>utm_campaign</code> の3本。</li>
+        <li><code>utm_content</code> は任意。テンプレ別などを分けたいときだけ付ける。</li>
+        <li><code>utm_campaign</code> は <code>年月_拠点ローマ字</code> で自動生成（例 <code>202606_nishinomiya</code>）。</li>
+        <li><code>utm_source</code> と <code>utm_medium</code> はチャネルを選ぶとセットで決まる（手打ち禁止＝表記ゆれ防止）。</li>
+        <li>予約ページは <code>https://timerex.net/s/SOCIALSQUARE/{slug}</code>。slugは拠点・予約タイプごとに固定。</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>チャネル辞書（source / medium）</h2>
+      <table id="channelTable">
+        <thead><tr><th>チャネル</th><th>utm_source</th><th>utm_medium</th><th>用途</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>拠点辞書（ローマ字 / 予約タイプ）</h2>
+      <table id="locationTable">
+        <thead><tr><th>拠点</th><th>campaignローマ字</th><th>予約タイプ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="warnote">campaignローマ字は西宮(nishinomiya)のみ確定。他は推定値。確定辞書に合わせて差し替え予定。</div>
+    </div>
   </div>
 </div>
 
 <script>
 /* ===========================================================
-   辞書（唯一の正）。ここを更新すれば全員の生成結果が揃う。
+   辞書（唯一の正）。ここを更新すれば生成もルール表示も同時に変わる。
    予約slugは 2026-06-30 にTimeRex管理画面から取得した実値。
    campaign用ローマ字は西宮(nishinomiya)のみ確定、他は※要確定。
    =========================================================== */
 
 const TIMEREX_BASE = "https://timerex.net/s/SOCIALSQUARE";
 
-// チャネル＝source と medium をセットで固定（mediumのゆれを防ぐ）
 const CHANNELS = [
   { key:"listing",  label:"リスティング広告",   source:"google",       medium:"cpc",         hint:"Google検索広告" },
   { key:"mailmag",  label:"メルマガ",           source:"mailmagazine", medium:"email",       hint:"Benchmark配信" },
@@ -99,35 +156,33 @@ const CHANNELS = [
   { key:"offline",  label:"チラシ・オフライン", source:"flyer",        medium:"offline",     hint:"パンフ/QR/ポスティングなど" },
 ];
 
-// 拠点ごとの予約slug（LP見学予約＝見学／マーケ施策（LP以外）＝個別相談）
-// romaはcampaignの拠点部分。※印は要確定（確定辞書PPTXに合わせる）。
 const LOCATIONS = [
-  { label:"秋田山王",   roma:"akita_sanno",      // ※要確定
+  { label:"秋田山王",   roma:"akita_sanno",
     bookings:[ {type:"見学", id:"3544f412"} ] },
-  { label:"秋田駅前",   roma:"akita_ekimae",     // ※要確定
+  { label:"秋田駅前",   roma:"akita_ekimae",
     bookings:[ {type:"見学", id:"58db8a18"},
                {type:"個別相談（ポスティング）", id:"c0330caa"},
                {type:"個別相談（手配り）", id:"c83576eb"} ] },
-  { label:"内郷",       roma:"uchigo",           // ※要確定
+  { label:"内郷",       roma:"uchigo",
     bookings:[ {type:"見学", id:"7ce796e8"} ] },
-  { label:"上荒川",     roma:"kamiarakawa",      // ※要確定
+  { label:"上荒川",     roma:"kamiarakawa",
     bookings:[ {type:"見学", id:"84f41484"} ] },
-  { label:"郡山",       roma:"koriyama",         // ※要確定
+  { label:"郡山",       roma:"koriyama",
     bookings:[ {type:"見学", id:"9a9109c3"} ] },
-  { label:"郡山駅前",   roma:"koriyama_ekimae",  // ※要確定（郡山と別カレンダー）
+  { label:"郡山駅前",   roma:"koriyama_ekimae",
     bookings:[ {type:"見学", id:"fb613951"} ] },
-  { label:"草加谷塚",   roma:"soka_yatsuka",     // ※要確定
+  { label:"草加谷塚",   roma:"soka_yatsuka",
     bookings:[ {type:"見学", id:"3cc40556"} ] },
-  { label:"西宮",       roma:"nishinomiya",      // 確定
+  { label:"西宮",       roma:"nishinomiya",
     bookings:[ {type:"見学", id:"cdca3ebd"},
                {type:"個別相談", id:"dd974f49"} ] },
-  { label:"尼崎",       roma:"amagasaki",        // ※要確定
+  { label:"尼崎",       roma:"amagasaki",
     bookings:[ {type:"見学", id:"4414884d"} ] },
-  { label:"上熊本",     roma:"kamikumamoto",     // ※要確定
+  { label:"上熊本",     roma:"kamikumamoto",
     bookings:[ {type:"見学", id:"4cf8cda5"} ] },
-  { label:"上乃裏",     roma:"kaminoura",        // ※要確定
+  { label:"上乃裏",     roma:"kaminoura",
     bookings:[ {type:"見学", id:"baf154a0"} ] },
-  { label:"水前寺",     roma:"suizenji",         // ※要確定
+  { label:"水前寺",     roma:"suizenji",
     bookings:[ {type:"見学", id:"a2f305f4"} ] },
 ];
 
@@ -151,7 +206,21 @@ function init(){
   $("ym").value = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
   $("location").addEventListener("input",refreshBookings);
   ["channel","ym","booking","content"].forEach(id=>$(id).addEventListener("input",render));
+  buildRuleTables();
+  setupTabs();
   refreshBookings();
+}
+
+function setupTabs(){
+  document.querySelectorAll(".tab").forEach(t=>{
+    t.addEventListener("click",()=>{
+      document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+      t.classList.add("active");
+      const tab=t.dataset.tab;
+      $("tab-gen").style.display = tab==="gen" ? "" : "none";
+      $("tab-rule").style.display = tab==="rule" ? "" : "none";
+    });
+  });
 }
 
 function refreshBookings(){
@@ -161,23 +230,39 @@ function refreshBookings(){
   render();
 }
 
-function build(){
+function current(){
   const loc=LOCATIONS[$("location").value];
   const bk=loc.bookings[$("booking").value] || loc.bookings[0];
   const ch=CHANNELS[$("channel").value];
   const ym=($("ym").value||"").replace("-","");
   const content=$("content").value.trim();
+  return {loc,bk,ch,ym,content};
+}
+
+function build(){
+  const {loc,bk,ch,ym,content}=current();
   $("channelHint").textContent = ch.hint;
   $("bookingHint").textContent = loc.bookings.length>1 ? "この拠点は予約タイプが複数あります" : "";
   if(!ym) return null;
-  const campaign = ym + "_" + loc.roma;
   const params = new URLSearchParams({
-    utm_source: ch.source,
-    utm_medium: ch.medium,
-    utm_campaign: campaign,
+    utm_source: ch.source, utm_medium: ch.medium, utm_campaign: ym+"_"+loc.roma,
   });
   if(content) params.set("utm_content", content);
   return `${TIMEREX_BASE}/${bk.id}?${params.toString()}`;
+}
+
+function renderBreakdown(){
+  const {loc,bk,ch,ym,content}=current();
+  const rows=[
+    ["予約slug", bk.id, `${loc.label} / ${bk.type}`],
+    ["utm_source", ch.source, ch.label],
+    ["utm_medium", ch.medium, ""],
+    ["utm_campaign", (ym||"——")+"_"+loc.roma, `年月 ${ym||"未入力"} ＋ 拠点 ${loc.roma}`],
+    ["utm_content", content || "（なし）", content ? "手入力" : ""],
+  ];
+  $("breakdown").innerHTML = rows.map(([k,v,s])=>
+    `<div class="k">${k}</div><div><span class="v">${v}</span>${s?` <span class="src">← ${s}</span>`:""}</div>`
+  ).join("");
 }
 
 let qrShown=false;
@@ -185,21 +270,26 @@ function render(){
   const url=build();
   $("url").textContent = url || "—";
   $("copied").textContent="";
+  renderBreakdown();
   if(qrShown) drawQR(url);
 }
 
-function drawQR(url){
-  $("qr").innerHTML="";
-  if(!url) return;
-  new QRCode($("qr"), {text:url, width:180, height:180, correctLevel:QRCode.CorrectLevel.M});
+function buildRuleTables(){
+  $("channelTable").querySelector("tbody").innerHTML = CHANNELS.map(c=>
+    `<tr><td>${c.label}</td><td><code>${c.source}</code></td><td><code>${c.medium}</code></td><td>${c.hint}</td></tr>`
+  ).join("");
+  $("locationTable").querySelector("tbody").innerHTML = LOCATIONS.map(l=>
+    `<tr><td>${l.label}</td><td><code>${l.roma}</code></td><td>${l.bookings.map(b=>b.type).join("、")}</td></tr>`
+  ).join("");
 }
+
+function drawQR(url){ $("qr").innerHTML=""; if(url) new QRCode($("qr"),{text:url,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}); }
 
 $("copy").addEventListener("click", async ()=>{
   const url=build(); if(!url) return;
   try{ await navigator.clipboard.writeText(url); $("copied").textContent="コピーしました"; }
   catch(e){ $("copied").textContent="コピーできませんでした（長押しで選択してください）"; }
 });
-
 $("qrbtn").addEventListener("click", ()=>{
   qrShown=!qrShown;
   if(qrShown){ drawQR(build()); $("qrbtn").textContent="QRを隠す"; }
