@@ -106,7 +106,7 @@
           <button class="act primary" id="copyshort">短縮URLをコピー</button>
           <span class="copied" id="copiedshort"></span>
         </div>
-        <div class="hint">LINEなどに貼る用。utmは短縮先に保持されます。</div>
+        <div class="hint">LINEなどに貼る用（tinyurl.com）。utmは短縮先に保持されます。</div>
       </div>
     </div>
 
@@ -296,26 +296,18 @@ function buildRuleTables(){
   ).join("");
 }
 
-function shorten(){
+async function shorten(){
   const url=build(); if(!url) return;
   $("shortwrap").style.display="";
   $("shorturl").textContent="短縮中...";
   $("copiedshort").textContent="";
-  const cb="isgd_cb_"+Date.now();
-  const sc=document.createElement("script");
-  let done=false, timer;
-  const finish=(msg)=>{ if(done)return; done=true; clearTimeout(timer);
-    try{delete window[cb];}catch(e){window[cb]=undefined;}
-    if(sc.parentNode) sc.parentNode.removeChild(sc);
-    $("shorturl").textContent=msg; };
-  window[cb]=(data)=>{
-    if(data && data.shorturl) finish(data.shorturl);
-    else finish("短縮できませんでした"+(data&&data.errormessage?("（"+data.errormessage+"）"):""));
-  };
-  sc.onerror=()=>finish("短縮に失敗しました（is.gd に接続できない可能性）");
-  timer=setTimeout(()=>finish("短縮がタイムアウトしました（ネットワークを確認してください）"),8000);
-  sc.src="https://is.gd/create.php?format=json&callback="+cb+"&url="+encodeURIComponent(url);
-  document.body.appendChild(sc);
+  try{
+    const r=await fetch("https://tinyurl.com/api-create.php?url="+encodeURIComponent(url));
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const t=(await r.text()).trim();
+    if(t.startsWith("http")) $("shorturl").textContent=t;
+    else $("shorturl").textContent="短縮できませんでした（"+t.slice(0,80)+"）";
+  }catch(e){ $("shorturl").textContent="短縮に失敗しました（"+e.message+"）"; }
 }
 
 function drawQR(url){ $("qr").innerHTML=""; if(url) new QRCode($("qr"),{text:url,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}); }
