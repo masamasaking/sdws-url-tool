@@ -95,9 +95,19 @@
       <div class="btns">
         <button class="act primary" id="copy">URLをコピー</button>
         <button class="act ghost" id="qrbtn">QRを表示</button>
+        <button class="act ghost" id="shortbtn">短縮URLを作る</button>
         <span class="copied" id="copied"></span>
       </div>
       <div id="qr"></div>
+      <div id="shortwrap" style="display:none;margin-top:14px">
+        <label>短縮URL</label>
+        <div class="urlbox" id="shorturl">—</div>
+        <div class="btns">
+          <button class="act primary" id="copyshort">短縮URLをコピー</button>
+          <span class="copied" id="copiedshort"></span>
+        </div>
+        <div class="hint">LINEなどに貼る用。utmは短縮先に保持されます。</div>
+      </div>
     </div>
 
     <div class="card">
@@ -150,6 +160,7 @@ const TIMEREX_BASE = "https://timerex.net/s/SOCIALSQUARE";
 const CHANNELS = [
   { key:"listing",  label:"リスティング広告",   source:"google",       medium:"cpc",         hint:"Google検索広告" },
   { key:"mailmag",  label:"メルマガ",           source:"mailmagazine", medium:"email",       hint:"Benchmark配信" },
+  { key:"line",     label:"LINE個別送付",       source:"line",         medium:"messaging",   hint:"LINEで候補者へ送付" },
   { key:"sns_ad",   label:"SNS広告",           source:"instagram",    medium:"paid_social", hint:"Meta/Instagram広告（7月以降）" },
   { key:"sns_org",  label:"SNSオーガニック",   source:"instagram",    medium:"social",      hint:"通常投稿" },
   { key:"gbp",      label:"GBP予約導線",       source:"gbp",          medium:"referral",    hint:"Googleビジネスプロフィール" },
@@ -270,6 +281,8 @@ function render(){
   const url=build();
   $("url").textContent = url || "—";
   $("copied").textContent="";
+  $("shortwrap").style.display="none";
+  $("copiedshort").textContent="";
   renderBreakdown();
   if(qrShown) drawQR(url);
 }
@@ -283,6 +296,18 @@ function buildRuleTables(){
   ).join("");
 }
 
+async function shorten(){
+  const url=build(); if(!url) return;
+  $("shortwrap").style.display="";
+  $("shorturl").textContent="短縮中...";
+  try{
+    const res=await fetch("https://is.gd/create.php?format=json&url="+encodeURIComponent(url));
+    const data=await res.json();
+    if(data && data.shorturl){ $("shorturl").textContent=data.shorturl; }
+    else { $("shorturl").textContent="短縮できませんでした"+(data&&data.errormessage?("（"+data.errormessage+"）"):""); }
+  }catch(e){ $("shorturl").textContent="短縮に失敗しました（社内ネットワークが is.gd を読めない可能性）"; }
+}
+
 function drawQR(url){ $("qr").innerHTML=""; if(url) new QRCode($("qr"),{text:url,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}); }
 
 $("copy").addEventListener("click", async ()=>{
@@ -294,6 +319,13 @@ $("qrbtn").addEventListener("click", ()=>{
   qrShown=!qrShown;
   if(qrShown){ drawQR(build()); $("qrbtn").textContent="QRを隠す"; }
   else{ $("qr").innerHTML=""; $("qrbtn").textContent="QRを表示"; }
+});
+$("shortbtn").addEventListener("click", shorten);
+$("copyshort").addEventListener("click", async ()=>{
+  const t=$("shorturl").textContent;
+  if(!t || t==="—" || t.startsWith("短縮")) return;
+  try{ await navigator.clipboard.writeText(t); $("copiedshort").textContent="コピーしました"; }
+  catch(e){ $("copiedshort").textContent="コピーできませんでした（長押しで選択してください）"; }
 });
 
 init();
