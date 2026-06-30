@@ -296,16 +296,26 @@ function buildRuleTables(){
   ).join("");
 }
 
-async function shorten(){
+function shorten(){
   const url=build(); if(!url) return;
   $("shortwrap").style.display="";
   $("shorturl").textContent="短縮中...";
-  try{
-    const res=await fetch("https://is.gd/create.php?format=json&url="+encodeURIComponent(url));
-    const data=await res.json();
-    if(data && data.shorturl){ $("shorturl").textContent=data.shorturl; }
-    else { $("shorturl").textContent="短縮できませんでした"+(data&&data.errormessage?("（"+data.errormessage+"）"):""); }
-  }catch(e){ $("shorturl").textContent="短縮に失敗しました（社内ネットワークが is.gd を読めない可能性）"; }
+  $("copiedshort").textContent="";
+  const cb="isgd_cb_"+Date.now();
+  const sc=document.createElement("script");
+  let done=false, timer;
+  const finish=(msg)=>{ if(done)return; done=true; clearTimeout(timer);
+    try{delete window[cb];}catch(e){window[cb]=undefined;}
+    if(sc.parentNode) sc.parentNode.removeChild(sc);
+    $("shorturl").textContent=msg; };
+  window[cb]=(data)=>{
+    if(data && data.shorturl) finish(data.shorturl);
+    else finish("短縮できませんでした"+(data&&data.errormessage?("（"+data.errormessage+"）"):""));
+  };
+  sc.onerror=()=>finish("短縮に失敗しました（is.gd に接続できない可能性）");
+  timer=setTimeout(()=>finish("短縮がタイムアウトしました（ネットワークを確認してください）"),8000);
+  sc.src="https://is.gd/create.php?format=json&callback="+cb+"&url="+encodeURIComponent(url);
+  document.body.appendChild(sc);
 }
 
 function drawQR(url){ $("qr").innerHTML=""; if(url) new QRCode($("qr"),{text:url,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}); }
