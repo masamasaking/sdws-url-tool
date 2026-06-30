@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDWS URL生成ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f7; --card:#ffffff; --ink:#1f2a2e; --sub:#5b6b71;
+    --line:#dfe5e7; --accent:#0d7d80; --accent-d:#0a6164; --warn:#b25b00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    line-height:1.6;padding:16px;}
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-size:18px;margin:4px 0 2px;}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px;}
+  label:first-child{margin-top:0;}
+  select,input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:15px;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none;}
+  select:focus,input:focus{outline:none;border-color:var(--accent);}
+  .hint{font-size:12px;color:var(--sub);margin-top:3px;}
+  .row{display:flex;gap:10px;}
+  .row>div{flex:1;}
+  .out{margin-top:4px;}
+  .urlbox{background:#f0f5f5;border:1px solid var(--line);border-radius:8px;padding:12px;
+    font-size:13px;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;color:#16383a;}
+  .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  button{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;}
+  .primary{background:var(--accent);color:#fff;}
+  .primary:active{background:var(--accent-d);}
+  .ghost{background:#eef2f2;color:var(--ink);}
+  #qr{margin-top:14px;display:flex;justify-content:center;}
+  #qr img,#qr canvas{border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff;}
+  .tag{display:inline-block;font-size:11px;color:var(--warn);border:1px solid var(--warn);
+    border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  .note{font-size:12px;color:var(--sub);margin-top:10px;}
+  .copied{font-size:12px;color:var(--accent);margin-left:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SDWS URL生成ツール <span class="tag">プロト</span></h1>
+  <p class="lead">拠点と流入元を選ぶだけでパラメータ付きの予約URLを発行します。予約ページのslugは拠点ごとに固定済みです。</p>
+
+  <div class="card">
+    <label>拠点</label>
+    <select id="location"></select>
+
+    <label>予約タイプ</label>
+    <select id="booking"></select>
+    <div class="hint" id="bookingHint"></div>
+
+    <label>チャネル（流入元）</label>
+    <select id="channel"></select>
+    <div class="hint" id="channelHint"></div>
+
+    <label>年月</label>
+    <input id="ym" type="month">
+
+    <label>テンプレ名 / 補足（任意・utm_content）</label>
+    <input id="content" type="text" placeholder="例 location_report（空欄でOK）">
+    <div class="hint">必要なときだけ。普段は空欄で3本だけ付きます。</div>
+  </div>
+
+  <div class="card out">
+    <label>生成URL</label>
+    <div class="urlbox" id="url">—</div>
+    <div class="btns">
+      <button class="primary" id="copy">URLをコピー</button>
+      <button class="ghost" id="qrbtn">QRを表示</button>
+      <span class="copied" id="copied"></span>
+    </div>
+    <div id="qr"></div>
+    <div class="note">utm_source / utm_medium / utm_campaign の3本を必須で付与。campaign は「年月_拠点」で自動生成します。</div>
+  </div>
+</div>
+
+<script>
+/* ===========================================================
+   辞書（唯一の正）。ここを更新すれば全員の生成結果が揃う。
+   予約slugは 2026-06-30 にTimeRex管理画面から取得した実値。
+   campaign用ローマ字は西宮(nishinomiya)のみ確定、他は※要確定。
+   =========================================================== */
+
+const TIMEREX_BASE = "https://timerex.net/s/SOCIALSQUARE";
+
+// チャネル＝source と medium をセットで固定（mediumのゆれを防ぐ）
+const CHANNELS = [
+  { key:"listing",  label:"リスティング広告",   source:"google",       medium:"cpc",         hint:"Google検索広告" },
+  { key:"mailmag",  label:"メルマガ",           source:"mailmagazine", medium:"email",       hint:"Benchmark配信" },
+  { key:"sns_ad",   label:"SNS広告",           source:"instagram",    medium:"paid_social", hint:"Meta/Instagram広告（7月以降）" },
+  { key:"sns_org",  label:"SNSオーガニック",   source:"instagram",    medium:"social",      hint:"通常投稿" },
+  { key:"gbp",      label:"GBP予約導線",       source:"gbp",          medium:"referral",    hint:"Googleビジネスプロフィール" },
+  { key:"offline",  label:"チラシ・オフライン", source:"flyer",        medium:"offline",     hint:"パンフ/QR/ポスティングなど" },
+];
+
+// 拠点ごとの予約slug（LP見学予約＝見学／マーケ施策（LP以外）＝個別相談）
+// romaはcampaignの拠点部分。※印は要確定（確定辞書PPTXに合わせる）。
+const LOCATIONS = [
+  { label:"秋田山王",   roma:"akita_sanno",      // ※要確定
+    bookings:[ {type:"見学", id:"3544f412"} ] },
+  { label:"秋田駅前",   roma:"akita_ekimae",     // ※要確定
+    bookings:[ {type:"見学", id:"58db8a18"},
+               {type:"個別相談（ポスティング）", id:"c0330caa"},
+               {type:"個別相談（手配り）", id:"c83576eb"} ] },
+  { label:"内郷",       roma:"uchigo",           // ※要確定
+    bookings:[ {type:"見学", id:"7ce796e8"} ] },
+  { label:"上荒川",     roma:"kamiarakawa",      // ※要確定
+    bookings:[ {type:"見学", id:"84f41484"} ] },
+  { label:"郡山",       roma:"koriyama",         // ※要確定
+    bookings:[ {type:"見学", id:"9a9109c3"} ] },
+  { label:"郡山駅前",   roma:"koriyama_ekimae",  // ※要確定（郡山と別カレンダー）
+    bookings:[ {type:"見学", id:"fb613951"} ] },
+  { label:"草加谷塚",   roma:"soka_yatsuka",     // ※要確定
+    bookings:[ {type:"見学", id:"3cc40556"} ] },
+  { label:"西宮",       roma:"nishinomiya",      // 確定
+    bookings:[ {type:"見学", id:"cdca3ebd"},
+               {type:"個別相談", id:"dd974f49"} ] },
+  { label:"尼崎",       roma:"amagasaki",        // ※要確定
+    bookings:[ {type:"見学", id:"4414884d"} ] },
+  { label:"上熊本",     roma:"kamikumamoto",     // ※要確定
+    bookings:[ {type:"見学", id:"4cf8cda5"} ] },
+  { label:"上乃裏",     roma:"kaminoura",        // ※要確定
+    bookings:[ {type:"見学", id:"baf154a0"} ] },
+  { label:"水前寺",     roma:"suizenji",         // ※要確定
+    bookings:[ {type:"見学", id:"a2f305f4"} ] },
+];
+
+/* ===========================================================
+   参考：採用関連フォルダのslug（採用PR用・集客ツールでは未使用）
+   カジュアル面談 草加谷塚:a38e57c7 西宮:3208600b 上荒川:c272f4e3
+     上乃裏:bd277738 尼崎:f22f34d4 秋田駅前:92470682 共通(大森):e5c196f7
+   一次選考 上熊本:49504872 上荒川:13a11c98 西宮:e036116c 尼崎:7221c0fd
+     秋田駅前:94e0ac3e 上乃裏:57549a1d オファー共通:c4652c5b 一次共通:5db78f08
+   見学(採用) 郡山:b8f3b246 兵庫(西宮):5801f3bb 秋田(駅前):c37629b0
+     熊本(上熊本):d7eacf68 熊本2(上乃裏):02475a02
+   フリー テスト:42ce31a0 西宮面談(小松):4d173e54
+   =========================================================== */
+
+const $ = id => document.getElementById(id);
+
+function init(){
+  LOCATIONS.forEach((l,i)=>$("location").add(new Option(l.label,i)));
+  CHANNELS.forEach((c,i)=>$("channel").add(new Option(c.label,i)));
+  const now=new Date();
+  $("ym").value = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  $("location").addEventListener("input",refreshBookings);
+  ["channel","ym","booking","content"].forEach(id=>$(id).addEventListener("input",render));
+  refreshBookings();
+}
+
+function refreshBookings(){
+  const loc=LOCATIONS[$("location").value];
+  $("booking").innerHTML="";
+  loc.bookings.forEach((b,i)=>$("booking").add(new Option(b.type,i)));
+  render();
+}
+
+function build(){
+  const loc=LOCATIONS[$("location").value];
+  const bk=loc.bookings[$("booking").value] || loc.bookings[0];
+  const ch=CHANNELS[$("channel").value];
+  const ym=($("ym").value||"").replace("-","");
+  const content=$("content").value.trim();
+  $("channelHint").textContent = ch.hint;
+  $("bookingHint").textContent = loc.bookings.length>1 ? "この拠点は予約タイプが複数あります" : "";
+  if(!ym) return null;
+  const campaign = ym + "_" + loc.roma;
+  const params = new URLSearchParams({
+    utm_source: ch.source,
+    utm_medium: ch.medium,
+    utm_campaign: campaign,
+  });
+  if(content) params.set("utm_content", content);
+  return `${TIMEREX_BASE}/${bk.id}?${params.toString()}`;
+}
+
+let qrShown=false;
+function render(){
+  const url=build();
+  $("url").textContent = url || "—";
+  $("copied").textContent="";
+  if(qrShown) drawQR(url);
+}
+
+function drawQR(url){
+  $("qr").innerHTML="";
+  if(!url) return;
+  new QRCode($("qr"), {text:url, width:180, height:180, correctLevel:QRCode.CorrectLevel.M});
+}
+
+$("copy").addEventListener("click", async ()=>{
+  const url=build(); if(!url) return;
+  try{ await navigator.clipboard.writeText(url); $("copied").textContent="コピーしました"; }
+  catch(e){ $("copied").textContent="コピーできませんでした（長押しで選択してください）"; }
+});
+
+$("qrbtn").addEventListener("click", ()=>{
+  qrShown=!qrShown;
+  if(qrShown){ drawQR(build()); $("qrbtn").textContent="QRを隠す"; }
+  else{ $("qr").innerHTML=""; $("qrbtn").textContent="QRを表示"; }
+});
+
+init();
+</script>
+</body>
+</html>
