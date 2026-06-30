@@ -106,7 +106,7 @@
           <button class="act primary" id="copyshort">短縮URLをコピー</button>
           <span class="copied" id="copiedshort"></span>
         </div>
-        <div class="hint">LINEなどに貼る用（tinyurl.com）。utmは短縮先に保持されます。</div>
+        <div class="hint">LINEなどに貼る用（da.gd・中間ページなしで直接遷移）。utmは短縮先に保持されます。</div>
       </div>
     </div>
 
@@ -302,7 +302,7 @@ async function shorten(){
   $("shorturl").textContent="短縮中...";
   $("copiedshort").textContent="";
   try{
-    const r=await fetch("https://tinyurl.com/api-create.php?url="+encodeURIComponent(url));
+    const r=await fetch("https://da.gd/s?url="+encodeURIComponent(url));
     if(!r.ok) throw new Error("HTTP "+r.status);
     const t=(await r.text()).trim();
     if(t.startsWith("http")) $("shorturl").textContent=t;
